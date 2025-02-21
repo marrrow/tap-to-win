@@ -50,6 +50,11 @@
       border-radius: 10px;
       min-width: 100px;
     }
+    .card p {
+      margin: 0 0 5px;
+      font-size: 1em;
+      opacity: 0.8;
+    }
     .card span {
       font-size: 1.4em;
       font-weight: bold;
@@ -152,15 +157,15 @@
   </div>
 
   <script>
-    // Prevent default touchmove to lock screen behavior
-    document.addEventListener('touchmove', function(e) { e.preventDefault(); }, { passive: false });
+    // Prevent default touchmove to lock screen
+    document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
 
     // Signal Telegram Web App is ready
     if (window.Telegram && Telegram.WebApp) {
       Telegram.WebApp.ready();
     }
 
-    // Helper: format time with milliseconds
+    // Helper: format time with millisecond precision
     function formatTime(timestamp) {
       const date = new Date(timestamp);
       const ms = ('00' + (timestamp % 1000)).slice(-3);
@@ -179,7 +184,7 @@
       return { id: 0, username: "Player1" };
     }
 
-    // Fetch user's current tap balance from server
+    // Fetch user's current tap balance
     function fetchBalance() {
       const user = getUser();
       fetch('/balance', {
@@ -196,7 +201,7 @@
       .catch(err => console.error(err));
     }
 
-    // Initialize the round (reset round state without affecting user balances)
+    // Initialize round state
     function initRound() {
       fetch('/reset')
         .then(response => response.json())
@@ -267,7 +272,7 @@
       .catch(err => console.error(err));
     });
 
-    // Draw winner and show friendly result window with next round controls
+    // Draw winner, show results with next round controls
     function drawWinner() {
       fetch('/draw')
         .then(response => response.json())
@@ -276,7 +281,9 @@
             const currentUser = getUser();
             const isWinner = (data.winningTap.user.id === currentUser.id);
             const myTaps = data.results.filter(r => r.user.id === currentUser.id);
-            let myBest = myTaps.length > 0 ? myTaps.reduce((prev, curr) => (curr.diff < prev.diff ? curr : prev)) : null;
+            let myBest = (myTaps.length > 0)
+              ? myTaps.reduce((prev, curr) => (curr.diff < prev.diff ? curr : prev))
+              : null;
             const resultsElem = document.getElementById('results');
             const winnerModal = document.createElement('div');
             winnerModal.id = 'winnerModal';
@@ -287,7 +294,8 @@
             html += `<p>Jackpot Awarded: ${data.jackpot}</p>`;
             if (isWinner) {
               html += `<p style="color: lightgreen; font-size: 1.3em;">Congratulations! You won this round!</p>`;
-              if (currentUser.id !== ${OWNER_ID}) {
+              // If you're the owner, we do NOT show your special total
+              if (currentUser.id !== 252205625) {
                 html += `<p>Your new tap balance: ${data.winnerBalance}</p>`;
               }
             } else {
@@ -307,7 +315,7 @@
             winnerModal.innerHTML = html;
             resultsElem.innerHTML = "";
             resultsElem.appendChild(winnerModal);
-            
+
             let countdown = 10;
             const timerElem = document.getElementById('nextTimer');
             const countdownInterval = setInterval(() => {
@@ -318,6 +326,7 @@
                 proceedToNextRound();
               }
             }, 1000);
+
             document.getElementById('nextGameButton').addEventListener('click', () => {
               clearInterval(countdownInterval);
               proceedToNextRound();
@@ -336,7 +345,7 @@
       location.reload();
     }
 
-    // Initialize round on page load
+    // Initialize on page load
     initRound();
   </script>
 </body>

@@ -19,9 +19,9 @@ let roundStartTime = Date.now();
 let jackpot = 0;
 let userTaps = {}; // Persistent tap balances per user
 
-const defaultTaps = 0;          // Normal users start with 0 taps (must buy)
-const ownerTaps = 1000000;      // Owner gets 1,000,000 taps (hidden)
-const ROUND_DURATION = 60 * 1000; // 1 minute
+const defaultTaps = 0;             // Normal users start with 0 taps (must buy)
+const ownerTaps = 1000000;         // Owner gets 1,000,000 taps (hidden from UI)
+const ROUND_DURATION = 60 * 1000;  // 1 minute
 
 // Owner Telegram ID (provided)
 const OWNER_ID = 252205625;
@@ -120,7 +120,13 @@ app.get('/reset', (req, res) => {
   taps = [];
   roundStartTime = Date.now();
   jackpot = 0;
-  res.json({ status: 'ok', message: 'Round reset.', roundStartTime, roundEndTime: roundStartTime + ROUND_DURATION, jackpot });
+  res.json({
+    status: 'ok',
+    message: 'Round reset.',
+    roundStartTime,
+    roundEndTime: roundStartTime + ROUND_DURATION,
+    jackpot
+  });
 });
 
 // Catch-all: serve index.html for any GET request not handled above
