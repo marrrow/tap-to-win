@@ -108,8 +108,10 @@
 <body>
   <div class="container">
     <h1>Tap to Win!</h1>
-    <p>Every 1‑minute tournament, a jackpot is drawn. Each tap costs 1 credit (unless you’re the owner).<br>
-       You start with <span class="info" id="credits">100</span> credits, and the jackpot grows with each tap.</p>
+    <p>
+      Every 1‑minute tournament, a jackpot is drawn. Each tap costs 1 credit (unless you’re the owner).<br>
+      You start with <span class="info" id="credits">100</span> credits, and the jackpot grows with each tap.
+    </p>
     <p>Jackpot: <span class="info" id="jackpot">0</span></p>
     <div id="countdown">Loading...</div>
     <div class="progress-container">
@@ -122,12 +124,24 @@
   </div>
 
   <script>
+    // Signal to Telegram that the Web App is ready (if launched from Telegram)
+    if (window.Telegram && Telegram.WebApp) {
+      Telegram.WebApp.ready();
+    }
+
+    // Helper function to format timestamps including milliseconds
+    function formatTime(timestamp) {
+      const date = new Date(timestamp);
+      const ms = timestamp % 1000;
+      return date.toLocaleTimeString() + '.' + ms;
+    }
+
     // Must match backend ROUND_DURATION (1 minute = 60,000 ms)
-    const ROUND_DURATION = 60 * 1000; 
+    const ROUND_DURATION = 60 * 1000;
     let roundStartTime = null;
     let roundEndTime = null;
     
-    // Get full user data from Telegram if available
+    // Get full user data from Telegram if available; otherwise default
     function getUser() {
       if (window.Telegram && Telegram.WebApp && Telegram.WebApp.initDataUnsafe && Telegram.WebApp.initDataUnsafe.user) {
         return Telegram.WebApp.initDataUnsafe.user;
@@ -180,7 +194,7 @@
       .then(data => {
         if (data.status === 'ok') {
           document.getElementById('status').innerText =
-            `Tap recorded at ${new Date(data.timestamp).toLocaleTimeString()}`;
+            `Tap recorded at ${formatTime(data.timestamp)}`;
           document.getElementById('credits').innerText = data.credits;
           document.getElementById('jackpot').innerText = data.jackpot;
         } else {
@@ -196,32 +210,67 @@
         .then(response => response.json())
         .then(data => {
           if (data.status === 'ok') {
+            const currentUser = getUser();
+            const isWinner = (data.winningTap.user.id === currentUser.id);
+            // Find best tap of current user (if any)
+            const myTaps = data.results.filter(r => r.user.id === currentUser.id);
+            let myBest = null;
+            if(myTaps.length > 0) {
+              myBest = myTaps.reduce((prev, curr) => (curr.diff < prev.diff ? curr : prev));
+            }
             const resultsElem = document.getElementById('results');
             const winnerModal = document.createElement('div');
             winnerModal.id = 'winnerModal';
-            let html = `<h2>Results</h2>
-                        <p>Winning Time: ${new Date(data.winningTime).toLocaleTimeString()}</p>
-                        <p><strong>Winner: ${data.winningTap.user}</strong></p>
-                        <p>(Tap at ${new Date(data.winningTap.timestamp).toLocaleTimeString()}, diff: ${data.winningTap.diff} ms, Rank: ${data.winningTap.rank})</p>
-                        <p>Jackpot: ${data.jackpot}</p>
-                        <h3>All Taps (Ranked by Closeness)</h3>
-                        <ul>`;
-            data.results.forEach(r => {
-              html += `<li>Rank ${r.rank}: ${r.user} - ${new Date(r.timestamp).toLocaleTimeString()} (Diff: ${r.diff} ms)</li>`;
-            });
-            html += `</ul>`;
+            let html = `<h2>Results</h2>`;
+            html += `<p>Winning Time: ${formatTime(data.winningTime)}</p>`;
+            html += `<p>Winner: <strong>${data.winningTap.user.username}</strong> with a tap at ${formatTime(data.winningTap.timestamp)}<br>(Diff: ${data.winningTap.diff} ms)</p>`;
+            html += `<p>Jackpot: ${data.jackpot}</p>`;
+            if(isWinner) {
+              html += `<p style="color: lightgreen; font-size: 1.3em;">Congratulations! You won this round!</p>`;
+            } else {
+              if(myBest) {
+                const gap = myBest.diff - data.winningTap.diff;
+                html += `<p>Your closest tap was at ${formatTime(myBest.timestamp)}.<br>You were ${gap} ms away from winning.</p>`;
+              } else {
+                html += `<p>You did not tap this round.</p>`;
+              }
+            }
+            // Add a control section for starting the next game
+            html += `<p>Next game starts in <span id="nextTimer">10</span> seconds.</p>`;
+            html += `<button id="nextGameButton">Next Game Now</button>`;
+            html += `<button id="stayButton">Stay on Results</button>`;
             winnerModal.innerHTML = html;
             resultsElem.innerHTML = "";
             resultsElem.appendChild(winnerModal);
-            // After displaying results for 10 seconds, automatically reset for a new tournament
-            setTimeout(() => {
-              location.reload();
-            }, 10000);
+            // Setup countdown timer for auto next game
+            let countdown = 10;
+            const timerElem = document.getElementById('nextTimer');
+            const countdownInterval = setInterval(() => {
+              countdown--;
+              if(timerElem) timerElem.innerText = countdown;
+              if(countdown <= 0) {
+                clearInterval(countdownInterval);
+                proceedToNextGame();
+              }
+            }, 1000);
+            // Next game button event
+            document.getElementById('nextGameButton').addEventListener('click', () => {
+              clearInterval(countdownInterval);
+              proceedToNextGame();
+            });
+            // Stay button event: cancel auto-next game
+            document.getElementById('stayButton').addEventListener('click', () => {
+              clearInterval(countdownInterval);
+            });
           } else {
             document.getElementById('results').innerText = data.message;
           }
         })
         .catch(err => console.error(err));
+    }
+    
+    function proceedToNextGame() {
+      location.reload();
     }
     
     // Reset round manually for testing
