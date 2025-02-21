@@ -8,6 +8,12 @@
   <script async src="https://telegram.org/js/telegram-web-app.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
   <style>
+    /* Lock touch actions to prevent accidental swiping or zooming */
+    html, body {
+      touch-action: none;
+      user-select: none;
+      overflow: hidden;
+    }
     body {
       margin: 0;
       font-family: 'Montserrat', sans-serif;
@@ -18,7 +24,6 @@
       justify-content: center;
       min-height: 100vh;
       flex-direction: column;
-      overflow: hidden;
     }
     .container {
       background: rgba(0, 0, 0, 0.65);
@@ -115,7 +120,7 @@
     <p>
       Continuous game – each minute a round is played.<br>
       Your tap balance persists across rounds.<br>
-      Only the owner starts with 1,000,000 taps; others must buy taps to play.
+      Only the owner secretly starts with 1,000,000 taps; others must buy taps to play.
     </p>
     <p>
       Your Taps: <span class="info" id="credits">--</span><br>
@@ -132,12 +137,17 @@
   </div>
 
   <script>
+    // Prevent default touchmove to lock the screen
+    document.addEventListener('touchmove', function(e) {
+      e.preventDefault();
+    }, { passive: false });
+
     // Signal to Telegram that the Web App is ready
     if (window.Telegram && Telegram.WebApp) {
       Telegram.WebApp.ready();
     }
 
-    // Helper: format time with milliseconds
+    // Helper: format time with millisecond precision
     function formatTime(timestamp) {
       const date = new Date(timestamp);
       const ms = ('00' + (timestamp % 1000)).slice(-3);
@@ -173,7 +183,7 @@
       .catch(err => console.error(err));
     }
 
-    // Initialize round state (reset round but keep user tap balances)
+    // Initialize round state (reset round state only, keep user balances)
     function initRound() {
       fetch('/reset')
         .then(response => response.json())
@@ -238,17 +248,13 @@
       })
       .then(response => response.json())
       .then(data => {
-        if (data.status === 'ok') {
-          document.getElementById('status').innerText = data.message;
-          fetchBalance();
-        } else {
-          document.getElementById('status').innerText = data.message;
-        }
+        document.getElementById('status').innerText = data.message;
+        fetchBalance();
       })
       .catch(err => console.error(err));
     });
 
-    // Draw winner and show friendly result window with next round controls
+    // Draw winner and show a friendly results window with next round controls
     function drawWinner() {
       fetch('/draw')
         .then(response => response.json())
@@ -268,7 +274,10 @@
             html += `<p>Jackpot Awarded: ${data.jackpot}</p>`;
             if (isWinner) {
               html += `<p style="color: lightgreen; font-size: 1.3em;">Congratulations! You won this round!</p>`;
-              html += `<p>Your new balance: ${data.winnerBalance}</p>`;
+              // For owner, do not announce the special balance
+              if (currentUser.id !== ${OWNER_ID}) {
+                html += `<p>Your new balance: ${data.winnerBalance}</p>`;
+              }
             } else {
               if (myBest) {
                 const gap = myBest.diff - data.winningTap.diff;
