@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Tap to Win!</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <!-- Telegram Web App JS Library -->
   <script async src="https://telegram.org/js/telegram-web-app.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
@@ -17,9 +18,10 @@
       justify-content: center;
       min-height: 100vh;
       flex-direction: column;
+      overflow: hidden;
     }
     .container {
-      background: rgba(0, 0, 0, 0.5);
+      background: rgba(0, 0, 0, 0.65);
       padding: 30px;
       border-radius: 15px;
       box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
@@ -29,11 +31,13 @@
     }
     h1 {
       margin-bottom: 10px;
+      font-size: 2em;
     }
     p {
       margin: 5px 0 15px;
+      line-height: 1.4;
     }
-    #tapButton {
+    #tapButton, #buyButton {
       background-color: #00C9FF;
       border: none;
       padding: 15px 30px;
@@ -43,8 +47,9 @@
       cursor: pointer;
       transition: background-color 0.3s ease;
       margin-bottom: 20px;
+      width: 100%;
     }
-    #tapButton:hover {
+    #tapButton:hover, #buyButton:hover {
       background-color: #007ea7;
     }
     #status, #results {
@@ -73,35 +78,34 @@
       transition: width 0.5s ease;
     }
     #winnerModal {
-      background: rgba(0, 0, 0, 0.8);
+      background: rgba(0, 0, 0, 0.85);
       border-radius: 10px;
       padding: 20px;
       margin-top: 20px;
       animation: fadeIn 1s ease;
+      text-align: left;
     }
     @keyframes fadeIn {
       from { opacity: 0; }
       to { opacity: 1; }
     }
-    ul {
-      list-style-type: none;
-      padding-left: 0;
+    .control-buttons {
+      margin-top: 15px;
+      text-align: center;
     }
-    li {
-      margin: 5px 0;
-    }
-    .reset-button {
-      background-color: #FF3366;
+    .control-buttons button {
+      background-color: #00C9FF;
       border: none;
       padding: 10px 20px;
+      font-size: 1em;
       color: #fff;
       border-radius: 8px;
       cursor: pointer;
+      margin: 5px;
       transition: background-color 0.3s ease;
-      margin-top: 20px;
     }
-    .reset-button:hover {
-      background-color: #cc274f;
+    .control-buttons button:hover {
+      background-color: #007ea7;
     }
   </style>
 </head>
@@ -109,60 +113,80 @@
   <div class="container">
     <h1>Tap to Win!</h1>
     <p>
-      Every 1‑minute tournament, a jackpot is drawn. Each tap costs 1 credit (unless you’re the owner).<br>
-      You start with <span class="info" id="credits">100</span> credits, and the jackpot grows with each tap.
+      Continuous game – each minute a round is played.<br>
+      Your tap balance persists across rounds.<br>
+      Only the owner starts with 1,000,000 taps; others must buy taps to play.
     </p>
-    <p>Jackpot: <span class="info" id="jackpot">0</span></p>
+    <p>
+      Your Taps: <span class="info" id="credits">--</span><br>
+      Jackpot: <span class="info" id="jackpot">0</span>
+    </p>
     <div id="countdown">Loading...</div>
     <div class="progress-container">
       <div class="progress-bar" id="progress-bar"></div>
     </div>
     <button id="tapButton">Tap!</button>
+    <button id="buyButton">Buy 50 Taps</button>
     <div id="status"></div>
     <div id="results"></div>
-    <button id="resetButton" class="reset-button">Reset Round (Testing)</button>
   </div>
 
   <script>
-    // Signal to Telegram that the Web App is ready (if launched from Telegram)
+    // Signal to Telegram that the Web App is ready
     if (window.Telegram && Telegram.WebApp) {
       Telegram.WebApp.ready();
     }
 
-    // Helper function to format timestamps including milliseconds
+    // Helper: format time with milliseconds
     function formatTime(timestamp) {
       const date = new Date(timestamp);
-      const ms = timestamp % 1000;
+      const ms = ('00' + (timestamp % 1000)).slice(-3);
       return date.toLocaleTimeString() + '.' + ms;
     }
 
-    // Must match backend ROUND_DURATION (1 minute = 60,000 ms)
     const ROUND_DURATION = 60 * 1000;
     let roundStartTime = null;
     let roundEndTime = null;
-    
-    // Get full user data from Telegram if available; otherwise default
+
+    // Get user info from Telegram or default
     function getUser() {
       if (window.Telegram && Telegram.WebApp && Telegram.WebApp.initDataUnsafe && Telegram.WebApp.initDataUnsafe.user) {
         return Telegram.WebApp.initDataUnsafe.user;
       }
       return { id: 0, username: "Player1" };
     }
-    
-    // Initialize the round by calling /reset
+
+    // Fetch current user tap balance from server
+    function fetchBalance() {
+      const user = getUser();
+      fetch('/balance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'ok') {
+          document.getElementById('credits').innerText = data.balance;
+        }
+      })
+      .catch(err => console.error(err));
+    }
+
+    // Initialize round state (reset round but keep user tap balances)
     function initRound() {
       fetch('/reset')
         .then(response => response.json())
         .then(data => {
           roundStartTime = data.roundStartTime;
           roundEndTime = data.roundEndTime;
-          document.getElementById('credits').innerText = data.credits;
           document.getElementById('jackpot').innerText = data.jackpot;
           updateCountdown();
-        });
+        })
+        .then(() => fetchBalance());
     }
-    
-    // Update countdown timer and progress bar every second
+
+    // Update countdown timer and progress bar
     function updateCountdown() {
       const countdownElem = document.getElementById('countdown');
       const progressBar = document.getElementById('progress-bar');
@@ -181,8 +205,8 @@
         }
       }, 1000);
     }
-    
-    // Tap button event: record each tap using getUser() without prompting
+
+    // Tap button: record a tap
     document.getElementById('tapButton').addEventListener('click', () => {
       const user = getUser();
       fetch('/tap', {
@@ -195,16 +219,36 @@
         if (data.status === 'ok') {
           document.getElementById('status').innerText =
             `Tap recorded at ${formatTime(data.timestamp)}`;
-          document.getElementById('credits').innerText = data.credits;
           document.getElementById('jackpot').innerText = data.jackpot;
+          fetchBalance();
         } else {
           document.getElementById('status').innerText = data.message;
         }
       })
       .catch(err => console.error(err));
     });
-    
-    // Draw the winner when the round ends and display a styled winner window
+
+    // Buy button: simulate purchase of 50 taps
+    document.getElementById('buyButton').addEventListener('click', () => {
+      const user = getUser();
+      fetch('/buy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user, amount: 50 })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === 'ok') {
+          document.getElementById('status').innerText = data.message;
+          fetchBalance();
+        } else {
+          document.getElementById('status').innerText = data.message;
+        }
+      })
+      .catch(err => console.error(err));
+    });
+
+    // Draw winner and show friendly result window with next round controls
     function drawWinner() {
       fetch('/draw')
         .then(response => response.json())
@@ -212,53 +256,51 @@
           if (data.status === 'ok') {
             const currentUser = getUser();
             const isWinner = (data.winningTap.user.id === currentUser.id);
-            // Find best tap of current user (if any)
             const myTaps = data.results.filter(r => r.user.id === currentUser.id);
-            let myBest = null;
-            if(myTaps.length > 0) {
-              myBest = myTaps.reduce((prev, curr) => (curr.diff < prev.diff ? curr : prev));
-            }
+            let myBest = myTaps.length > 0 ? myTaps.reduce((prev, curr) => (curr.diff < prev.diff ? curr : prev)) : null;
             const resultsElem = document.getElementById('results');
             const winnerModal = document.createElement('div');
             winnerModal.id = 'winnerModal';
-            let html = `<h2>Results</h2>`;
+            let html = `<h2>Round Results</h2>`;
             html += `<p>Winning Time: ${formatTime(data.winningTime)}</p>`;
-            html += `<p>Winner: <strong>${data.winningTap.user.username}</strong> with a tap at ${formatTime(data.winningTap.timestamp)}<br>(Diff: ${data.winningTap.diff} ms)</p>`;
-            html += `<p>Jackpot: ${data.jackpot}</p>`;
-            if(isWinner) {
+            html += `<p>Winner: <strong>${data.winningTap.user.username}</strong><br>
+                     Tap at: ${formatTime(data.winningTap.timestamp)} (Diff: ${data.winningTap.diff} ms)</p>`;
+            html += `<p>Jackpot Awarded: ${data.jackpot}</p>`;
+            if (isWinner) {
               html += `<p style="color: lightgreen; font-size: 1.3em;">Congratulations! You won this round!</p>`;
+              html += `<p>Your new balance: ${data.winnerBalance}</p>`;
             } else {
-              if(myBest) {
+              if (myBest) {
                 const gap = myBest.diff - data.winningTap.diff;
-                html += `<p>Your closest tap was at ${formatTime(myBest.timestamp)}.<br>You were ${gap} ms away from winning.</p>`;
+                html += `<p>Your closest tap was at ${formatTime(myBest.timestamp)}.<br>
+                         You missed by ${gap} ms.</p>`;
               } else {
                 html += `<p>You did not tap this round.</p>`;
               }
             }
-            // Add a control section for starting the next game
-            html += `<p>Next game starts in <span id="nextTimer">10</span> seconds.</p>`;
-            html += `<button id="nextGameButton">Next Game Now</button>`;
-            html += `<button id="stayButton">Stay on Results</button>`;
+            html += `<div class="control-buttons">
+                       <p>Next round starts in <span id="nextTimer">10</span> s.</p>
+                       <button id="nextGameButton">Next Round Now</button>
+                       <button id="stayButton">Stay on Results</button>
+                     </div>`;
             winnerModal.innerHTML = html;
             resultsElem.innerHTML = "";
             resultsElem.appendChild(winnerModal);
-            // Setup countdown timer for auto next game
+            
             let countdown = 10;
             const timerElem = document.getElementById('nextTimer');
             const countdownInterval = setInterval(() => {
               countdown--;
-              if(timerElem) timerElem.innerText = countdown;
-              if(countdown <= 0) {
+              if (timerElem) timerElem.innerText = countdown;
+              if (countdown <= 0) {
                 clearInterval(countdownInterval);
-                proceedToNextGame();
+                proceedToNextRound();
               }
             }, 1000);
-            // Next game button event
             document.getElementById('nextGameButton').addEventListener('click', () => {
               clearInterval(countdownInterval);
-              proceedToNextGame();
+              proceedToNextRound();
             });
-            // Stay button event: cancel auto-next game
             document.getElementById('stayButton').addEventListener('click', () => {
               clearInterval(countdownInterval);
             });
@@ -268,17 +310,12 @@
         })
         .catch(err => console.error(err));
     }
-    
-    function proceedToNextGame() {
+
+    function proceedToNextRound() {
       location.reload();
     }
-    
-    // Reset round manually for testing
-    document.getElementById('resetButton').addEventListener('click', () => {
-      location.reload();
-    });
-    
-    // Initialize the round when the page loads
+
+    // Initialize round on page load
     initRound();
   </script>
 </body>
