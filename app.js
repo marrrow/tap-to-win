@@ -9,10 +9,10 @@ app.use(express.static('public'));
 
 /*
   Continuous game state:
-  - taps: Array of tap objects for the current round.
-  - roundStartTime: Start time of the current round.
-  - jackpot: Accumulated jackpot for the current round.
-  - userTaps: Persistent tap balances for each user.
+  - taps: array of taps for the current round.
+  - roundStartTime: start time of the current round.
+  - jackpot: accumulated jackpot for the current round.
+  - userTaps: persistent tap balances for each user.
 */
 let taps = []; // Each tap: { user: { id, username }, timestamp: number }
 let roundStartTime = Date.now();
@@ -37,28 +37,24 @@ function ensureUserBalance(user) {
 // Endpoint to "buy" taps (simulate purchase)
 app.post('/buy', (req, res) => {
   const user = req.body.user || { id: 0, username: 'Anonymous' };
-  // In a real implementation, payment processing would be handled here.
   const purchaseAmount = parseInt(req.body.amount) || 50;
   ensureUserBalance(user);
-  // Only non-owner users can buy taps
   if (user.id !== OWNER_ID) {
     userTaps[user.id] += purchaseAmount;
   }
   res.json({ status: 'ok', message: `Purchased ${purchaseAmount} taps`, balance: userTaps[user.id] });
 });
 
-// POST /tap – record a tap, costing 1 tap unit for non-owners
+// POST /tap – record a tap, costing 1 tap unit for non‑owners
 app.post('/tap', (req, res) => {
   const user = req.body.user || { id: 0, username: 'Anonymous' };
   ensureUserBalance(user);
   const timestamp = Date.now();
 
-  // Only allow taps within the current round
   if (timestamp - roundStartTime > ROUND_DURATION) {
     return res.status(400).json({ status: 'error', message: 'Round over. Please wait for the next round.' });
   }
 
-  // Non-owner users must have at least 1 tap to play
   if (user.id !== OWNER_ID) {
     if (userTaps[user.id] <= 0) {
       return res.status(400).json({ status: 'error', message: 'Insufficient taps. Please buy taps to play.' });
@@ -70,7 +66,7 @@ app.post('/tap', (req, res) => {
   res.json({ status: 'ok', message: 'Tap recorded', timestamp, balance: userTaps[user.id], jackpot });
 });
 
-// GET /draw – determine the winning tap, award the jackpot, and reset the round state
+// GET /draw – determine the winning tap, award the jackpot, and reset round state
 app.get('/draw', (req, res) => {
   const roundEndTime = roundStartTime + ROUND_DURATION;
   if (Date.now() < roundEndTime) {
@@ -91,7 +87,6 @@ app.get('/draw', (req, res) => {
   const winningTap = results[0];
 
   ensureUserBalance(winningTap.user);
-  // Award the jackpot to the winner by adding it to their tap balance
   userTaps[winningTap.user.id] += jackpot;
 
   const responseData = {
@@ -105,7 +100,7 @@ app.get('/draw', (req, res) => {
     winnerBalance: userTaps[winningTap.user.id]
   };
 
-  // Reset round state (taps and jackpot) but keep persistent balances intact
+  // Reset round state (taps and jackpot) while keeping persistent balances
   taps = [];
   roundStartTime = Date.now();
   jackpot = 0;
@@ -120,7 +115,7 @@ app.post('/balance', (req, res) => {
   res.json({ status: 'ok', balance });
 });
 
-// GET /reset – for testing: resets only the current round state (does not affect user balances)
+// GET /reset – for testing: resets the current round state (does not affect userTaps)
 app.get('/reset', (req, res) => {
   taps = [];
   roundStartTime = Date.now();

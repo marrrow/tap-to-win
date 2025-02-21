@@ -8,7 +8,7 @@
   <script async src="https://telegram.org/js/telegram-web-app.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
   <style>
-    /* Lock touch actions to prevent accidental swiping or zooming */
+    /* Prevent unwanted scrolling or zooming */
     html, body {
       touch-action: none;
       user-select: none;
@@ -26,68 +26,83 @@
       flex-direction: column;
     }
     .container {
-      background: rgba(0, 0, 0, 0.65);
+      background: rgba(0, 0, 0, 0.75);
       padding: 30px;
       border-radius: 15px;
       box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
       text-align: center;
-      max-width: 500px;
+      max-width: 480px;
       width: 90%;
     }
     h1 {
-      margin-bottom: 10px;
-      font-size: 2em;
+      margin-bottom: 15px;
+      font-size: 2.2em;
+      letter-spacing: 1px;
     }
-    p {
-      margin: 5px 0 15px;
-      line-height: 1.4;
-    }
-    #tapButton, #buyButton {
-      background-color: #00C9FF;
-      border: none;
-      padding: 15px 30px;
-      font-size: 1.2em;
-      color: #fff;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: background-color 0.3s ease;
+    .status-cards {
+      display: flex;
+      justify-content: space-around;
       margin-bottom: 20px;
-      width: 100%;
     }
-    #tapButton:hover, #buyButton:hover {
-      background-color: #007ea7;
+    .card {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 10px 15px;
+      border-radius: 10px;
+      min-width: 100px;
     }
-    #status, #results {
-      margin-top: 20px;
+    .card span {
+      font-size: 1.4em;
+      font-weight: bold;
     }
     #countdown {
       font-size: 2em;
       font-weight: bold;
       margin-bottom: 15px;
     }
-    .info {
-      font-size: 1.2em;
-      font-weight: bold;
-    }
     .progress-container {
       background: rgba(255, 255, 255, 0.2);
-      border-radius: 5px;
+      border-radius: 10px;
       overflow: hidden;
       height: 20px;
-      margin-bottom: 20px;
+      margin-bottom: 25px;
     }
     .progress-bar {
       height: 100%;
       background: #00C9FF;
       width: 0%;
       transition: width 0.5s ease;
+      border-radius: 10px;
+    }
+    .button-group {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    .button-group button {
+      flex: 1;
+      background: linear-gradient(135deg, #00C9FF, #007ea7);
+      border: none;
+      padding: 15px;
+      font-size: 1.1em;
+      color: #fff;
+      border-radius: 25px;
+      cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+    .button-group button:hover {
+      transform: scale(1.03);
+    }
+    #status {
+      margin-top: 15px;
+      min-height: 24px;
+      font-size: 1.1em;
     }
     #winnerModal {
       background: rgba(0, 0, 0, 0.85);
       border-radius: 10px;
       padding: 20px;
       margin-top: 20px;
-      animation: fadeIn 1s ease;
+      animation: fadeIn 0.8s ease;
       text-align: left;
     }
     @keyframes fadeIn {
@@ -95,59 +110,57 @@
       to { opacity: 1; }
     }
     .control-buttons {
-      margin-top: 15px;
+      margin-top: 20px;
       text-align: center;
     }
     .control-buttons button {
-      background-color: #00C9FF;
+      background: linear-gradient(135deg, #00C9FF, #007ea7);
       border: none;
       padding: 10px 20px;
       font-size: 1em;
       color: #fff;
-      border-radius: 8px;
+      border-radius: 25px;
       cursor: pointer;
       margin: 5px;
-      transition: background-color 0.3s ease;
-    }
-    .control-buttons button:hover {
-      background-color: #007ea7;
+      transition: background 0.3s ease;
     }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>Tap to Win!</h1>
-    <p>
-      Continuous game – each minute a round is played.<br>
-      Your tap balance persists across rounds.<br>
-      Only the owner secretly starts with 1,000,000 taps; others must buy taps to play.
-    </p>
-    <p>
-      Your Taps: <span class="info" id="credits">--</span><br>
-      Jackpot: <span class="info" id="jackpot">0</span>
-    </p>
+    <div class="status-cards">
+      <div class="card">
+        <p>Your Taps</p>
+        <span id="credits">--</span>
+      </div>
+      <div class="card">
+        <p>Jackpot</p>
+        <span id="jackpot">0</span>
+      </div>
+    </div>
     <div id="countdown">Loading...</div>
     <div class="progress-container">
       <div class="progress-bar" id="progress-bar"></div>
     </div>
-    <button id="tapButton">Tap!</button>
-    <button id="buyButton">Buy 50 Taps</button>
+    <div class="button-group">
+      <button id="tapButton">Tap!</button>
+      <button id="buyButton">Buy 50 Taps</button>
+    </div>
     <div id="status"></div>
     <div id="results"></div>
   </div>
 
   <script>
-    // Prevent default touchmove to lock the screen
-    document.addEventListener('touchmove', function(e) {
-      e.preventDefault();
-    }, { passive: false });
+    // Prevent default touchmove to lock screen behavior
+    document.addEventListener('touchmove', function(e) { e.preventDefault(); }, { passive: false });
 
-    // Signal to Telegram that the Web App is ready
+    // Signal Telegram Web App is ready
     if (window.Telegram && Telegram.WebApp) {
       Telegram.WebApp.ready();
     }
 
-    // Helper: format time with millisecond precision
+    // Helper: format time with milliseconds
     function formatTime(timestamp) {
       const date = new Date(timestamp);
       const ms = ('00' + (timestamp % 1000)).slice(-3);
@@ -166,7 +179,7 @@
       return { id: 0, username: "Player1" };
     }
 
-    // Fetch current user tap balance from server
+    // Fetch user's current tap balance from server
     function fetchBalance() {
       const user = getUser();
       fetch('/balance', {
@@ -183,7 +196,7 @@
       .catch(err => console.error(err));
     }
 
-    // Initialize round state (reset round state only, keep user balances)
+    // Initialize the round (reset round state without affecting user balances)
     function initRound() {
       fetch('/reset')
         .then(response => response.json())
@@ -254,7 +267,7 @@
       .catch(err => console.error(err));
     });
 
-    // Draw winner and show a friendly results window with next round controls
+    // Draw winner and show friendly result window with next round controls
     function drawWinner() {
       fetch('/draw')
         .then(response => response.json())
@@ -274,9 +287,8 @@
             html += `<p>Jackpot Awarded: ${data.jackpot}</p>`;
             if (isWinner) {
               html += `<p style="color: lightgreen; font-size: 1.3em;">Congratulations! You won this round!</p>`;
-              // For owner, do not announce the special balance
               if (currentUser.id !== ${OWNER_ID}) {
-                html += `<p>Your new balance: ${data.winnerBalance}</p>`;
+                html += `<p>Your new tap balance: ${data.winnerBalance}</p>`;
               }
             } else {
               if (myBest) {
