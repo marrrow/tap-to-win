@@ -1,5 +1,6 @@
 // app.js
 const express = require('express');
+const path = require('path');
 const app = express();
 const port = 3000;
 
@@ -16,7 +17,7 @@ let roundStartTime = Date.now();
 let jackpot = 0;
 
 // Global credits for non-owner users (for demo purposes)
-let credits = 100; // This applies for any user except owner; owner gets free taps
+let credits = 100; // Applies for any user except the owner; the owner gets free taps
 
 // Set round duration to 1 minute (60,000 ms)
 const ROUND_DURATION = 60 * 1000; 
@@ -73,7 +74,7 @@ app.get('/draw', (req, res) => {
     diff: Math.abs(tap.timestamp - winningTime)
   }));
   
-  // Sort taps by closeness to winning time (smallest difference first)
+  // Sort taps by closeness to winning time (smallest diff first)
   results.sort((a, b) => a.diff - b.diff);
   // Assign rank based on sorted order (1 = closest)
   results.forEach((result, index) => result.rank = index + 1);
@@ -99,6 +100,11 @@ app.get('/reset', (req, res) => {
   credits = 100;
   jackpot = 0;
   res.json({ status: 'ok', message: 'Round reset.', roundStartTime, roundEndTime: roundStartTime + ROUND_DURATION, credits, jackpot });
+});
+
+// Catch-all route: serve index.html for any GET request not otherwise handled
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.listen(port, () => {
